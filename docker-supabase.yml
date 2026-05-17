@@ -1,0 +1,177 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: arimarun-traefik
+    restart: unless-stopped
+
+    command:
+      - "--api.dashboard=false"
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/acme.json:/letsencrypt/acme.json
+
+    networks:
+      - frontend
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: arimarun-redis
+    restart: unless-stopped
+
+    command: >
+      redis-server
+      --appendonly yes
+      --save 60 1000
+
+    volumes:
+      - redis_data:/data
+
+    expose:
+      - "6379"
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: arimarun-api
+    restart: unless-stopped
+    user: "appuser"
+
+    env_file:
+      - .env
+
+    environment:
+      # DATABASE_URL is automatically picked up from .env (which will be your Supabase URI)
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+
+    expose:
+      - "8000"
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    networks:
+      - frontend
+      - backend
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.arimarun-api.rule=Host(`${API_DOMAIN}`)"
+      - "traefik.http.routers.arimarun-api.entrypoints=websecure"
+      - "traefik.http.routers.arimarun-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.arimarun-api.loadbalancer.server.port=8000"
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    security_opt:
+      - no-new-privileges:true
+
+    read_only: false
+
+    tmpfs:
+      - /tmp
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: arimarun-worker
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+    command: rq worker -u redis://redis:6379/0 high default low
+
+    env_file:
+      - .env
+
+    environment:
+      # DATABASE_URL is automatically picked up from .env (which will be your Supabase URI)
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    networks:
+      - backend
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    security_opt:
+      - no-new-privileges:true
+
+    tmpfs:
+      - /tmp
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:
+
+networks:
+  frontend:
+    driver: bridge
+
+  backend:
+    driver: bridge
