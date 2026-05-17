@@ -4,8 +4,13 @@ from app.core.config import settings
 from app.api.v1.auth import router as auth_router
 from app.api.v1.deployments import router as deployments_router
 from app.api.v1.webhooks import router as webhooks_router
+from app.db.init_db import init_db
 
 app = FastAPI(title=settings.PROJECT_NAME)
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
 
 # Setup CORS
 app.add_middleware(
