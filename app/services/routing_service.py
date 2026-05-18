@@ -30,8 +30,8 @@ class RoutingService:
             self.redis_client.set(f"traefik/http/routers/{safe_id}/tls", "true")
             self.redis_client.set(f"traefik/http/routers/{safe_id}/tls/certresolver", "letsencrypt")
 
-            # Service definition: Point loadbalancer to worker_ip:port
-            target_url = f"http://{worker_ip}:{port}"
+            # Service definition: Point loadbalancer to worker_ip:port using HTTPS
+            target_url = f"https://{worker_ip}:{port}"
             self.redis_client.set(f"traefik/http/services/{safe_id}/loadbalancer/servers/0/url", target_url)
 
             logger.info(f"Registered Traefik route for {subdomain} -> {target_url} in Redis.")

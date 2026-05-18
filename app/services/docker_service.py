@@ -35,7 +35,9 @@ class DockerService:
             labels = [
                 "traefik.enable=true",
                 f"traefik.http.routers.{name}.rule=Host(`{subdomain}`)",
-                f"traefik.http.routers.{name}.entrypoints=web"
+                f"traefik.http.routers.{name}.entrypoints=web",
+                f"traefik.http.services.{name}.loadbalancer.server.scheme=https",
+                f"traefik.http.services.{name}.loadbalancer.server.port=6901"
             ]
             
             label_args = []
@@ -51,6 +53,7 @@ class DockerService:
                 "--cpu-period", "100000",
                 "--network", "bridge",
                 "-p", "6901",
+                "--shm-size", "1g",
                 "-e", "VNC_PW=password",
                 "-e", "VNC_USER=kasm_user",
                 "--user", "1000:1000",
