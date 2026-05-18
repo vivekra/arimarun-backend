@@ -16,9 +16,25 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
+# ── CORS Middleware ─────────────────────────────────────────────────────────
+# MUST be added before routers so OPTIONS preflight requests are handled first
+_cors_origins = settings.cors_origins_list
+logger.info(f"CORS configured for origins: {_cors_origins}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,          # Required for HttpOnly cookie-based JWT auth
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["Set-Cookie"],   # Allows browser to read Set-Cookie on cross-origin
+)
+
+# ── Startup event ───────────────────────────────────────────────────────────
 @app.on_event("startup")
 def startup_event():
     logger.info("=== ARIMARUN API STARTING UP ===")
+    logger.info(f"=== CORS ORIGINS ALLOWED: {_cors_origins} ===")
     try:
         init_db()
         logger.info("=== DATABASE CONNECTION SUCCESSFUL ===")
@@ -26,15 +42,7 @@ def startup_event():
         logger.error(f"=== DATABASE INITIALIZATION FAILED: {e} ===")
         raise
 
-# Setup CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# ── Routers ─────────────────────────────────────────────────────────────────
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(deployments_router, prefix="/api/v1/deployments", tags=["deployments"])
 app.include_router(webhooks_router, prefix="/api/v1/webhooks", tags=["webhooks"])

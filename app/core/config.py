@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from pydantic import field_validator
+from typing import List
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "ArimaRun Backend API"
@@ -9,8 +10,24 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
-    
+
+    # Comma-separated string in .env:
+    # ALLOWED_ORIGINS=https://friendly-puppy-2b0856.netlify.app,https://arima.io,http://localhost:3000
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        # If it's already a list (e.g. from a JSON env var), return it unchanged
+        if isinstance(v, list):
+            return ",".join(v)
+        return v
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Returns a clean list of allowed origin strings."""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
     # Environment variables are loaded automatically by pydantic-settings
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
