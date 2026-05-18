@@ -30,6 +30,9 @@ class Subscription(BaseModel):
     # State machine: trialing | active | past_due | suspended | cancelled | expired
     status = Column(String, nullable=False, default="trialing")
 
+    # e.g. "monthly", "yearly", "free_trial"
+    billing_cycle = Column(String, nullable=False, default="monthly")
+
     # Billing lifecycle dates
     started_at   = Column(DateTime(timezone=True), nullable=True)  # When paid period began
     renews_at    = Column(DateTime(timezone=True), nullable=True)  # Next renewal date
