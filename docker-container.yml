@@ -1,0 +1,149 @@
+version: "3.9"
+
+services:
+
+  traefik:
+    image: traefik:v2.11
+    container_name: arimarun-traefik
+    restart: unless-stopped
+
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/letsencrypt:/letsencrypt
+
+    networks:
+      - frontend
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build: .
+    container_name: arimarun-api
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+
+    depends_on:
+      - redis
+
+    volumes:
+      - .:/app
+
+    networks:
+      - frontend
+      - backend
+
+    labels:
+      - "traefik.enable=true"
+
+      - "traefik.docker.network=arimarun-public"
+
+      - "traefik.http.routers.api.rule=Host(`api.arima.io`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls=true"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build: .
+    container_name: arimarun-worker
+    restart: unless-stopped
+
+    command: rq worker -u redis://redis:6379/0 high default low
+
+    env_file:
+      - .env
+
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+
+    depends_on:
+      - redis
+
+    volumes:
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    networks:
+      - backend
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: arimarun-redis
+    restart: unless-stopped
+
+    command: redis-server --appendonly yes
+
+    volumes:
+      - redis_data:/data
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:
+
+networks:
+  frontend:
+    name: arimarun-public
+    driver: bridge
+
+  backend:
+    name: arimarun-internal
+    driver: bridge
