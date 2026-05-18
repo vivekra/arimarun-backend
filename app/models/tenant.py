@@ -10,6 +10,7 @@ class Tenant(BaseModel):
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     # Relationships
-    owner = relationship("User", back_populates="tenants")
+    owner         = relationship("User", back_populates="tenants")
     subscriptions = relationship("Subscription", back_populates="tenant", cascade="all, delete-orphan")
-    deployments = relationship("Deployment", back_populates="tenant", cascade="all, delete-orphan")
+    deployments   = relationship("Deployment", back_populates="tenant", cascade="all, delete-orphan")
+    resources     = relationship("Resource", back_populates="tenant", cascade="all, delete-orphan")

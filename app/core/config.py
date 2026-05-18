@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    TRIAL_DAYS: int = 14  # Free trial duration; override via TRIAL_DAYS=N in .env
 
     # Comma-separated string in .env:
     # ALLOWED_ORIGINS=https://friendly-puppy-2b0856.netlify.app,https://arima.io,http://localhost:3000

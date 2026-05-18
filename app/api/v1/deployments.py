@@ -36,10 +36,14 @@ def create_deployment(deploy_in: DeploymentCreate, db: Session = Depends(get_db)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
-    # Check for active subscription
-    sub = db.query(Subscription).filter(Subscription.tenant_id == tenant.id, Subscription.status == "active").first()
+    # Check for active or trialing subscription
+    sub = db.query(Subscription).filter(
+        Subscription.tenant_id == tenant.id,
+        Subscription.status.in_(["active", "trialing"])
+    ).first()
     if not sub:
         raise HTTPException(status_code=403, detail="Active subscription required. Please upgrade your plan.")
+
         
     # Check subdomain uniqueness and auto-recover stale deployments
     existing_dep = db.query(Deployment).filter(Deployment.subdomain == deploy_in.subdomain).first()

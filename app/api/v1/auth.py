@@ -1,182 +1,207 @@
+"""
+auth.py — Authentication & user lifecycle router.
+
+Registration:  User → Tenant → Subscription (linked to Starter Trial product).
+Upgrade path:  Paymenter webhook updates existing subscription in-place.
+"""
 import logging
 import time
+from datetime import datetime, timezone, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr
+
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.models.tenant import Tenant
+from app.models.product import Product
 from app.models.subscription import Subscription
 from app.security.password import get_password_hash, verify_password
 from app.security.jwt import create_access_token, create_refresh_token, decode_token
-from pydantic import BaseModel, EmailStr
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+# ── Pydantic schemas ─────────────────────────────────────────────────────────
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: str
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+
+# ── Register ─────────────────────────────────────────────────────────────────
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
+    """
+    Fully transactional registration:
+      1. Validate email uniqueness
+      2. Create User
+      3. Create Tenant
+      4. Look up Starter Trial product
+      5. Create trial Subscription linked to that product
+    Rollback all on any failure — no orphan resources.
+    """
     t_start = time.time()
     logger.info(f"REGISTER ROUTE HIT — email={user_in.email}")
+
     try:
-        # Check if user exists
-        logger.debug("Querying for existing user...")
-        user = db.query(User).filter(User.email == user_in.email).first()
-        if user:
-            logger.warning(f"Registration attempt for existing email: {user_in.email}")
+        # ── 1. Email uniqueness ──────────────────────────────────────────────
+        logger.debug("Checking for duplicate email...")
+        if db.query(User).filter(User.email == user_in.email).first():
+            logger.warning(f"Duplicate registration — email={user_in.email}")
             raise HTTPException(
-                status_code=400,
-                detail="The user with this username already exists in the system.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An account with this email address already exists.",
             )
 
-        # Hash password
-        logger.debug("Hashing password...")
-        hashed = get_password_hash(user_in.password)
-        logger.debug("Password hashed successfully")
-
-        # Create User
-        logger.debug("Creating User record...")
+        # ── 2. Create User ───────────────────────────────────────────────────
+        logger.debug("Hashing password and creating User...")
         new_user = User(
             email=user_in.email,
-            hashed_password=hashed,
+            hashed_password=get_password_hash(user_in.password),
             full_name=user_in.full_name,
         )
         db.add(new_user)
         db.flush()
-        logger.info(f"User flushed with id={new_user.id}")
+        logger.info(f"User flushed — user_id={new_user.id}")
 
-        # Create Default Tenant
-        logger.debug("Creating Tenant record...")
+        # ── 3. Create Tenant ─────────────────────────────────────────────────
+        logger.debug("Creating Tenant...")
         new_tenant = Tenant(
             name=f"{user_in.full_name}'s Workspace",
-            owner_id=new_user.id
+            owner_id=new_user.id,
         )
         db.add(new_tenant)
         db.flush()
-        logger.info(f"Tenant flushed with id={new_tenant.id}")
+        logger.info(f"Tenant flushed — tenant_id={new_tenant.id}")
 
-        # Create default subscription
-        logger.debug("Creating default Subscription record...")
-        mock_sub = Subscription(
-            tenant_id=new_tenant.id,
-            paymenter_subscription_id="mock_sub_demo_123",
-            plan_name="basic",
-            status="active",
-            limits={"mem_limit": "2g", "cpu_quota": 200000}
+        # ── 4. Look up Starter Trial product ─────────────────────────────────
+        starter = (
+            db.query(Product)
+            .filter(Product.metadata["slug"].astext == "starter-trial")
+            .first()
         )
-        db.add(mock_sub)
+        if not starter:
+            logger.warning("Starter Trial product not found in catalog — using bare limits.")
 
-        logger.debug("Committing transaction...")
+        trial_limits = (
+            {"cpu": starter.cpu, "memory": starter.memory,
+             "deployments": starter.max_instances, "storage_gb": starter.storage_gb}
+            if starter else {"cpu": "0.5", "memory": "512m", "deployments": 1}
+        )
+
+        # ── 5. Create trial Subscription ─────────────────────────────────────
+        trial_ends = datetime.now(timezone.utc) + timedelta(days=settings.TRIAL_DAYS)
+        logger.debug(f"Creating trial Subscription — trial_ends_at={trial_ends.date()}")
+        trial_sub = Subscription(
+            tenant_id=new_tenant.id,
+            product_id=starter.id if starter else None,
+            paymenter_subscription_id=None,
+            plan_name="starter",
+            status="trialing",
+            trial_ends_at=trial_ends,
+            limits=trial_limits,
+        )
+        db.add(trial_sub)
+
+        # ── 6. Commit ────────────────────────────────────────────────────────
+        logger.debug("Committing registration transaction...")
         db.commit()
         db.refresh(new_user)
-        logger.info(f"REGISTER SUCCESS — user_id={new_user.id} in {time.time()-t_start:.3f}s")
 
-        return {"message": "User registered successfully", "user_id": str(new_user.id)}
+        logger.info(
+            f"REGISTER SUCCESS — user_id={new_user.id} "
+            f"tenant_id={new_tenant.id} plan=starter/trialing "
+            f"trial_ends={trial_ends.date()} elapsed={time.time()-t_start:.3f}s"
+        )
+        return {
+            "message": f"Registration successful. Your {settings.TRIAL_DAYS}-day trial has started.",
+            "user_id": str(new_user.id),
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"REGISTER FAILED — unexpected error after {time.time()-t_start:.3f}s")
+        logger.exception(f"REGISTER FAILED — rolling back — elapsed={time.time()-t_start:.3f}s")
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed due to a server error. Please try again.",
+        )
 
 
+# ── Login ─────────────────────────────────────────────────────────────────────
 @router.post("/login")
 def login(response: Response, user_in: UserLogin, db: Session = Depends(get_db)):
     t_start = time.time()
     logger.info(f"LOGIN ROUTE HIT — email={user_in.email}")
     try:
-        # Authenticate
-        logger.debug("Querying user by email...")
         user = db.query(User).filter(User.email == user_in.email).first()
         if not user:
-            logger.warning(f"Login attempt for non-existent email: {user_in.email}")
             raise HTTPException(status_code=400, detail="Incorrect email or password")
 
-        logger.debug("Verifying password...")
         if not verify_password(user_in.password, user.hashed_password):
-            logger.warning(f"Password mismatch for email: {user_in.email}")
             raise HTTPException(status_code=400, detail="Incorrect email or password")
 
-        # Generate tokens
-        logger.debug("Generating JWT tokens...")
-        access_token = create_access_token(subject=user.id)
+        access_token  = create_access_token(subject=user.id)
         refresh_token = create_refresh_token(subject=user.id)
-        logger.debug("JWT tokens generated successfully")
 
-        # Set HTTP-only cookies
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=True,
-            samesite="lax"
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="lax",
-            path="/api/v1/auth/refresh"
-        )
+        response.set_cookie(key="access_token",  value=access_token,
+                            httponly=True, secure=True, samesite="lax")
+        response.set_cookie(key="refresh_token", value=refresh_token,
+                            httponly=True, secure=True, samesite="lax",
+                            path="/api/v1/auth/refresh")
 
-        logger.info(f"LOGIN SUCCESS — user_id={user.id} in {time.time()-t_start:.3f}s")
+        logger.info(f"LOGIN SUCCESS — user_id={user.id} elapsed={time.time()-t_start:.3f}s")
         return {"message": "Login successful"}
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.exception(f"LOGIN FAILED — unexpected error after {time.time()-t_start:.3f}s")
-        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+    except Exception:
+        logger.exception(f"LOGIN FAILED — elapsed={time.time()-t_start:.3f}s")
+        raise HTTPException(status_code=500, detail="Login failed due to a server error.")
 
 
+# ── Refresh ───────────────────────────────────────────────────────────────────
 @router.post("/refresh")
 def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
     logger.info("REFRESH ROUTE HIT")
     try:
-        refresh_token = request.cookies.get("refresh_token")
-        if not refresh_token:
+        token = request.cookies.get("refresh_token")
+        if not token:
             raise HTTPException(status_code=401, detail="Refresh token missing")
 
-        payload = decode_token(refresh_token)
+        payload = decode_token(token)
         if not payload or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
         user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid refresh token payload")
-
         user = db.query(User).filter(User.id == user_id).first()
         if not user or not user.is_active:
             raise HTTPException(status_code=401, detail="User not found or inactive")
 
-        access_token = create_access_token(subject=user.id)
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=True,
-            samesite="lax"
-        )
+        new_access = create_access_token(subject=user.id)
+        response.set_cookie(key="access_token", value=new_access,
+                            httponly=True, secure=True, samesite="lax")
         logger.info(f"REFRESH SUCCESS — user_id={user.id}")
         return {"message": "Token refreshed"}
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.exception("REFRESH FAILED — unexpected error")
-        raise HTTPException(status_code=500, detail=f"Token refresh failed: {str(e)}")
+    except Exception:
+        logger.exception("REFRESH FAILED")
+        raise HTTPException(status_code=500, detail="Token refresh failed.")
 
 
+# ── Logout ────────────────────────────────────────────────────────────────────
 @router.post("/logout")
 def logout(response: Response):
     logger.info("LOGOUT ROUTE HIT")
@@ -185,47 +210,45 @@ def logout(response: Response):
     return {"message": "Logged out successfully"}
 
 
+# ── Me ────────────────────────────────────────────────────────────────────────
 @router.get("/me")
 def get_current_user(request: Request, db: Session = Depends(get_db)):
     logger.info("ME ROUTE HIT")
     try:
-        access_token = request.cookies.get("access_token")
-        if not access_token:
+        token = request.cookies.get("access_token")
+        if not token:
             raise HTTPException(status_code=401, detail="Not authenticated")
 
-        payload = decode_token(access_token)
+        payload = decode_token(token)
         if not payload or payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        user_id = payload.get("sub")
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == payload.get("sub")).first()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 
         tenant = db.query(Tenant).filter(Tenant.owner_id == user.id).first()
         subscription = None
+        product = None
+
         if tenant:
-            subscription = db.query(Subscription).filter(
-                Subscription.tenant_id == tenant.id
-            ).order_by(Subscription.created_at.desc()).first()
+            subscription = (
+                db.query(Subscription)
+                .filter(Subscription.tenant_id == tenant.id)
+                .order_by(Subscription.created_at.desc())
+                .first()
+            )
+            if subscription and subscription.product_id:
+                product = db.query(Product).filter(
+                    Product.id == subscription.product_id
+                ).first()
 
-            if not subscription:
-                logger.info(f"No subscription found for tenant={tenant.id}, creating default basic plan")
-                subscription = Subscription(
-                    tenant_id=tenant.id,
-                    paymenter_subscription_id=f"mock_sub_legacy_{str(tenant.id)[:8]}",
-                    plan_name="basic",
-                    status="active",
-                    limits={"mem_limit": "2g", "cpu_quota": 200000}
-                )
-                db.add(subscription)
-                db.commit()
-                db.refresh(subscription)
-
+        # Derive frontend plan label
         plan_name = "free"
         if subscription:
-            p_name = subscription.plan_name.lower()
-            plan_name = "basic" if p_name in ["starter", "basic"] else p_name
+            plan_name = subscription.plan_name.lower()
+            if plan_name == "starter":
+                plan_name = "basic"   # frontend display mapping
 
         logger.info(f"ME SUCCESS — user_id={user.id} plan={plan_name}")
         return {
@@ -234,12 +257,23 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
             "full_name": user.full_name,
             "tenant_id": str(tenant.id) if tenant else None,
             "subscription_status": subscription.status if subscription else "none",
-            "plan": plan_name
+            "trial_ends_at": (
+                subscription.trial_ends_at.isoformat()
+                if subscription and subscription.trial_ends_at else None
+            ),
+            "plan": plan_name,
+            "product": {
+                "name":                product.name,
+                "resource_type":       product.resource_type,
+                "monthly_price_pence": product.monthly_price_pence,
+                "cpu":                 product.cpu,
+                "memory":              product.memory,
+                "storage_gb":          product.storage_gb,
+            } if product else None,
         }
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.exception("ME FAILED — unexpected error")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch user: {str(e)}")
-
+    except Exception:
+        logger.exception("ME FAILED")
+        raise HTTPException(status_code=500, detail="Failed to fetch user profile.")
