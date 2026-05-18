@@ -81,6 +81,8 @@ services:
       # DATABASE_URL is automatically picked up from .env (which will be your Supabase URI)
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
+      # Hardcoded CORS origins — add new frontends here and redeploy
+      ALLOWED_ORIGINS: "https://friendly-puppy-2b0856.netlify.app,https://arima.io,https://www.arima.io,http://localhost:3000"
 
     expose:
       - "8000"
@@ -143,6 +145,7 @@ services:
       # DATABASE_URL is automatically picked up from .env (which will be your Supabase URI)
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: "https://friendly-puppy-2b0856.netlify.app,https://arima.io,https://www.arima.io,http://localhost:3000"
 
     depends_on:
       redis:
