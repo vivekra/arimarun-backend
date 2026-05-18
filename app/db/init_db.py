@@ -141,17 +141,15 @@ SEED_PRODUCTS = [
 
 
 def seed_products(db) -> None:
-    """Insert default products if not already present.  Keyed on metadata->slug."""
+    """Insert default products if not already present.  Keyed on extra->slug."""
+    # Fetch existing slugs in Python — avoids JSONB-specific .astext operator
+    existing = db.query(Product).all()
+    existing_slugs = {p.extra.get("slug") for p in existing if p.extra}
+
     inserted = 0
     for spec in SEED_PRODUCTS:
         slug = spec["extra"]["slug"]
-        # Idempotency: only insert if this slug does not exist yet
-        exists = (
-            db.query(Product)
-            .filter(Product.extra["slug"].astext == slug)
-            .first()
-        )
-        if not exists:
+        if slug not in existing_slugs:
             db.add(Product(**spec))
             inserted += 1
 

@@ -84,10 +84,10 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         logger.info(f"Tenant flushed — tenant_id={new_tenant.id}")
 
         # ── 4. Look up Starter Trial product ─────────────────────────────────
-        starter = (
-            db.query(Product)
-            .filter(Product.extra["slug"].astext == "starter-trial")
-            .first()
+        all_products = db.query(Product).all()
+        starter = next(
+            (p for p in all_products if p.extra and p.extra.get("slug") == "starter-trial"),
+            None
         )
         if not starter:
             logger.warning("Starter Trial product not found in catalog — using bare limits.")

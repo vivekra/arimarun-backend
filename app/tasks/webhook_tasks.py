@@ -59,10 +59,10 @@ def process_paymenter_webhook_task(event_id: str):
 
             product = None
             if product_slug:
-                product = (
-                    db.query(Product)
-                    .filter(Product.extra["slug"].astext == product_slug)
-                    .first()
+                all_products = db.query(Product).all()
+                product = next(
+                    (p for p in all_products if p.extra and p.extra.get("slug") == product_slug),
+                    None
                 )
 
             # Derive limits from product; fall back to payload limits
