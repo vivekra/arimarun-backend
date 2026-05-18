@@ -180,7 +180,14 @@ def delete_deployment(deployment_id: str, db: Session = Depends(get_db)):
 
     # 1. Enqueue dynamic stop task in background to destroy docker container if running
     from app.tasks.deployment_tasks import stop_deployment_task
-    high_queue.enqueue(stop_deployment_task, str(deployment.id))
+    from rq import Queue
+    import redis
+    from app.core.config import settings
+
+    if deployment.worker_node_id:
+        redis_conn = redis.from_url(settings.REDIS_URL)
+        worker_queue = Queue(f"deployments:{deployment.worker_node_id}", connection=redis_conn)
+        worker_queue.enqueue(stop_deployment_task, str(deployment.id))
 
     # 2. Clear events and deployment record from database
     db.query(DeploymentEvent).filter(DeploymentEvent.deployment_id == deployment.id).delete()
