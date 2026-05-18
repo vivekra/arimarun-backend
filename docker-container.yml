@@ -85,38 +85,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  worker:
-    build: .
-    container_name: arimarun-worker
-    restart: unless-stopped
-
-    command: python worker_daemon.py
-
-    env_file:
-      - .env
-
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - WORKER_SECRET=${WORKER_SECRET:-change_me_in_production}
-      - API_BASE_URL=http://api:8000
-      - IS_CONTROL_PLANE=false
-
-    depends_on:
-      - redis
-
-    volumes:
-      - .:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-
-    networks:
-      - backend
-
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   redis:
     image: redis:7-alpine
