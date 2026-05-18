@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  worker:
+    build: .
+    container_name: arimarun-worker
+    restart: unless-stopped
+    command: python worker_daemon.py
+    env_file:
+      - .env
+    environment:
+      # Pass through environment variables from the .env file.
+      - DATABASE_URL=${DATABASE_URL:-}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - WORKER_SECRET=${WORKER_SECRET}
+      - API_BASE_URL=${API_BASE_URL}
+      - HOST_IP=${HOST_IP}
+      - IS_CONTROL_PLANE=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
