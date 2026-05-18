@@ -97,10 +97,17 @@ services:
 
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=arimarun-backend_frontend"
       - "traefik.http.routers.arimarun-api.rule=Host(`${API_DOMAIN}`)"
       - "traefik.http.routers.arimarun-api.entrypoints=websecure"
       - "traefik.http.routers.arimarun-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.arimarun-api.loadbalancer.server.port=8000"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.arimarun-api-http.rule=Host(`${API_DOMAIN}`)"
+      - "traefik.http.routers.arimarun-api-http.entrypoints=web"
+      - "traefik.http.routers.arimarun-api-http.middlewares=https-redirect"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
