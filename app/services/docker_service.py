@@ -60,14 +60,16 @@ class DockerService:
             container_id = self._run_docker(cmd)
             
             # Retrieve the dynamic port mapping allocated by Docker Desktop
-            try:
-                port_info = self._run_docker(["port", name, "6901"])
-                allocated_port = port_info.split(":")[-1].strip()
-                allocated_subdomain = f"localhost:{allocated_port}"
-            except Exception:
-                allocated_subdomain = subdomain
+            # try:
+            #     port_info = self._run_docker(["port", name, "6901"])
+            #     allocated_port = port_info.split(":")[-1].strip()
+            #     allocated_subdomain = f"localhost:{allocated_port}"
+            # except Exception:
+            #     allocated_subdomain = subdomain
 
-            return container_id, allocated_subdomain
+            # return container_id, allocated_subdomain
+            # Return Container Id and Subdomain for Testing Purpose only
+            return container_id, subdomain
         except Exception as e:
             logger.error(f"Failed to deploy container: {str(e)}")
             raise e
