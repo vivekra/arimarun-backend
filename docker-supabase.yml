@@ -11,6 +11,7 @@ services:
       - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=frontend"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
@@ -97,7 +98,6 @@ services:
 
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=arimarun-backend_frontend"
       - "traefik.http.routers.arimarun-api.rule=Host(`${API_DOMAIN}`)"
       - "traefik.http.routers.arimarun-api.entrypoints=websecure"
       - "traefik.http.routers.arimarun-api.tls.certresolver=letsencrypt"
