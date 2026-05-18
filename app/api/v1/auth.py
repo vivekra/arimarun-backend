@@ -155,9 +155,11 @@ def login(response: Response, user_in: UserLogin, db: Session = Depends(get_db))
         refresh_token = create_refresh_token(subject=user.id)
 
         response.set_cookie(key="access_token",  value=access_token,
-                            httponly=True, secure=True, samesite="lax")
+                            httponly=True, secure=True, samesite="none",
+                            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
         response.set_cookie(key="refresh_token", value=refresh_token,
-                            httponly=True, secure=True, samesite="lax",
+                            httponly=True, secure=True, samesite="none",
+                            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
                             path="/api/v1/auth/refresh")
 
         logger.info(f"LOGIN SUCCESS — user_id={user.id} elapsed={time.time()-t_start:.3f}s")
@@ -190,7 +192,8 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
 
         new_access = create_access_token(subject=user.id)
         response.set_cookie(key="access_token", value=new_access,
-                            httponly=True, secure=True, samesite="lax")
+                            httponly=True, secure=True, samesite="none",
+                            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
         logger.info(f"REFRESH SUCCESS — user_id={user.id}")
         return {"message": "Token refreshed"}
 

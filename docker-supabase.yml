@@ -11,7 +11,7 @@ services:
       - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=frontend"
+      - "--providers.docker.network=arimarun-public"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
@@ -181,7 +181,9 @@ volumes:
 
 networks:
   frontend:
+    name: arimarun-public     # Explicit stable name — Traefik always routes via this
     driver: bridge
 
   backend:
+    name: arimarun-internal   # Internal service-to-service network (Redis, worker)
     driver: bridge
