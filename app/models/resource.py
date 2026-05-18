@@ -35,7 +35,8 @@ class Resource(BaseModel):
     ip_address = Column(String, nullable=True)
 
     # Arbitrary runtime metadata (port mappings, image used, etc.)
-    metadata = Column(JSON, nullable=True, default=dict)
+    # NOTE: 'metadata' is reserved by SQLAlchemy — use 'extra' instead
+    extra = Column(JSON, nullable=True, default=dict)
 
     # Relationships
     tenant = relationship("Tenant", back_populates="resources")
