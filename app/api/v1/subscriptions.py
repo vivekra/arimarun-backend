@@ -51,7 +51,7 @@ def _format_product(p: Product) -> dict:
         "storage_gb":            p.storage_gb,
         "bandwidth_gb":          p.bandwidth_gb,
         "max_instances":         p.max_instances,
-        "metadata":              p.metadata or {},
+        "extra":                 p.extra or {},
     }
 
 

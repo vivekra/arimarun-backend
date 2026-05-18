@@ -86,7 +86,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         # ── 4. Look up Starter Trial product ─────────────────────────────────
         starter = (
             db.query(Product)
-            .filter(Product.metadata["slug"].astext == "starter-trial")
+            .filter(Product.extra["slug"].astext == "starter-trial")
             .first()
         )
         if not starter:

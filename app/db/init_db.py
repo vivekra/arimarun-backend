@@ -32,7 +32,7 @@ SEED_PRODUCTS = [
         "storage_gb": 10,
         "bandwidth_gb": 100,
         "max_instances": 1,
-        "metadata": {"slug": "starter-trial", "label": "Free Trial", "highlight": False},
+        "extra": {"slug": "starter-trial", "label": "Free Trial", "highlight": False},
     },
     # ── Desktop Workspaces ───────────────────────────────────────────────────
     {
@@ -44,7 +44,7 @@ SEED_PRODUCTS = [
         "storage_gb": 20,
         "bandwidth_gb": 250,
         "max_instances": 1,
-        "metadata": {"slug": "basic-desktop", "label": "Basic", "highlight": False},
+        "extra": {"slug": "basic-desktop", "label": "Basic", "highlight": False},
     },
     {
         "name": "Pro Desktop",
@@ -55,7 +55,7 @@ SEED_PRODUCTS = [
         "storage_gb": 50,
         "bandwidth_gb": 500,
         "max_instances": 3,
-        "metadata": {"slug": "pro-desktop", "label": "Pro", "highlight": True},
+        "extra": {"slug": "pro-desktop", "label": "Pro", "highlight": True},
     },
     # ── VPS Plans ────────────────────────────────────────────────────────────
     {
@@ -67,7 +67,7 @@ SEED_PRODUCTS = [
         "storage_gb": 25,
         "bandwidth_gb": 1000,
         "max_instances": 1,
-        "metadata": {"slug": "vps-small", "label": "VPS Small", "highlight": False},
+        "extra": {"slug": "vps-small", "label": "VPS Small", "highlight": False},
     },
     {
         "name": "VPS Medium",
@@ -78,7 +78,7 @@ SEED_PRODUCTS = [
         "storage_gb": 80,
         "bandwidth_gb": 2000,
         "max_instances": 1,
-        "metadata": {"slug": "vps-medium", "label": "VPS Medium", "highlight": True},
+        "extra": {"slug": "vps-medium", "label": "VPS Medium", "highlight": True},
     },
     {
         "name": "VPS Large",
@@ -89,7 +89,7 @@ SEED_PRODUCTS = [
         "storage_gb": 200,
         "bandwidth_gb": 5000,
         "max_instances": 1,
-        "metadata": {"slug": "vps-large", "label": "VPS Large", "highlight": False},
+        "extra": {"slug": "vps-large", "label": "VPS Large", "highlight": False},
     },
     # ── Container Runners ────────────────────────────────────────────────────
     {
@@ -101,7 +101,7 @@ SEED_PRODUCTS = [
         "storage_gb": 10,
         "bandwidth_gb": 100,
         "max_instances": 2,
-        "metadata": {"slug": "container-small", "label": "Container S", "highlight": False},
+        "extra": {"slug": "container-small", "label": "Container S", "highlight": False},
     },
     {
         "name": "Container Medium",
@@ -112,7 +112,7 @@ SEED_PRODUCTS = [
         "storage_gb": 20,
         "bandwidth_gb": 500,
         "max_instances": 5,
-        "metadata": {"slug": "container-medium", "label": "Container M", "highlight": False},
+        "extra": {"slug": "container-medium", "label": "Container M", "highlight": False},
     },
     # ── Storage Add-ons ──────────────────────────────────────────────────────
     {
@@ -124,7 +124,7 @@ SEED_PRODUCTS = [
         "storage_gb": 50,
         "bandwidth_gb": 0,
         "max_instances": 1,
-        "metadata": {"slug": "storage-50gb", "label": "50 GB", "highlight": False},
+        "extra": {"slug": "storage-50gb", "label": "50 GB", "highlight": False},
     },
     {
         "name": "Storage 200 GB",
@@ -135,7 +135,7 @@ SEED_PRODUCTS = [
         "storage_gb": 200,
         "bandwidth_gb": 0,
         "max_instances": 1,
-        "metadata": {"slug": "storage-200gb", "label": "200 GB", "highlight": False},
+        "extra": {"slug": "storage-200gb", "label": "200 GB", "highlight": False},
     },
 ]
 
@@ -144,11 +144,11 @@ def seed_products(db) -> None:
     """Insert default products if not already present.  Keyed on metadata->slug."""
     inserted = 0
     for spec in SEED_PRODUCTS:
-        slug = spec["metadata"]["slug"]
+        slug = spec["extra"]["slug"]
         # Idempotency: only insert if this slug does not exist yet
         exists = (
             db.query(Product)
-            .filter(Product.metadata["slug"].astext == slug)
+            .filter(Product.extra["slug"].astext == slug)
             .first()
         )
         if not exists:

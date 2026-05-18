@@ -61,7 +61,7 @@ def process_paymenter_webhook_task(event_id: str):
             if product_slug:
                 product = (
                     db.query(Product)
-                    .filter(Product.metadata["slug"].astext == product_slug)
+                    .filter(Product.extra["slug"].astext == product_slug)
                     .first()
                 )
 

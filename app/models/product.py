@@ -33,4 +33,5 @@ class Product(BaseModel):
     is_active = Column(Boolean, nullable=False, default=True)
 
     # Arbitrary extra metadata (e.g. feature flags, marketing copy)
-    metadata = Column(JSON, nullable=True, default=dict)
+    # NOTE: 'metadata' is reserved by SQLAlchemy — use 'extra' instead
+    extra = Column(JSON, nullable=True, default=dict)
