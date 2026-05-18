@@ -11,7 +11,8 @@ services:
       - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-
+      - "--providers.redis=true"
+      - "--providers.redis.endpoints=redis:6379"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
 
@@ -87,7 +88,7 @@ services:
     container_name: arimarun-worker
     restart: unless-stopped
 
-    command: rq worker -u redis://redis:6379/0 high default low
+    command: python worker_daemon.py
 
     env_file:
       - .env
@@ -96,6 +97,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
+      - WORKER_SECRET=${WORKER_SECRET:-change_me_in_production}
+      - API_BASE_URL=http://api:8000
+      - IS_CONTROL_PLANE=false
 
     depends_on:
       - redis

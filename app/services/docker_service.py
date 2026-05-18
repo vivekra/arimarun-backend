@@ -59,17 +59,30 @@ class DockerService:
 
             container_id = self._run_docker(cmd)
             
-            # Retrieve the dynamic port mapping allocated by Docker Desktop
-            # try:
-            #     port_info = self._run_docker(["port", name, "6901"])
-            #     allocated_port = port_info.split(":")[-1].strip()
-            #     allocated_subdomain = f"localhost:{allocated_port}"
-            # except Exception:
-            #     allocated_subdomain = subdomain
+            # Retrieve the dynamic port mapping allocated by Docker
+            try:
+                port_info = self._run_docker(["port", name, "6901"])
+                # Extract the port, e.g., "0.0.0.0:32768" -> "32768"
+                allocated_port = int(port_info.split(":")[-1].strip())
+            except Exception as e:
+                logger.error(f"Failed to get port mapping for {name}: {e}")
+                raise e
 
-            # return container_id, allocated_subdomain
-            # Return Container Id and Subdomain for Testing Purpose only
-            return container_id, subdomain
+            # Retrieve the worker host IP. The worker daemon should set HOST_IP in env
+            # or default to public IP discovery or local interface.
+            import os
+            import socket
+            worker_ip = os.environ.get("HOST_IP")
+            if not worker_ip:
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s.connect(("8.8.8.8", 80))
+                    worker_ip = s.getsockname()[0]
+                    s.close()
+                except Exception:
+                    worker_ip = "127.0.0.1"
+
+            return container_id, worker_ip, allocated_port
         except Exception as e:
             logger.error(f"Failed to deploy container: {str(e)}")
             raise e

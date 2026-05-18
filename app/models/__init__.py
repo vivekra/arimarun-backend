@@ -6,6 +6,8 @@ from app.models.subscription import Subscription
 from app.models.resource import Resource
 from app.models.deployment import Deployment
 from app.models.events import DeploymentEvent, WebhookEvent, ApiToken
+from app.models.worker_node import WorkerNode
+from app.models.workspace_domain import WorkspaceDomain
 
 # Expose models for Alembic and init_db
 __all__ = [
@@ -19,4 +21,6 @@ __all__ = [
     "DeploymentEvent",
     "WebhookEvent",
     "ApiToken",
+    "WorkerNode",
+    "WorkspaceDomain",
 ]

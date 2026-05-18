@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     TRIAL_DAYS: int = 14  # Free trial duration; override via TRIAL_DAYS=N in .env
+    WORKER_SECRET: str = "change_me_in_production"
+    API_BASE_URL: str = "http://localhost:8000"
 
     # Comma-separated string in .env:
     # ALLOWED_ORIGINS=https://friendly-puppy-2b0856.netlify.app,https://arima.io,http://localhost:3000

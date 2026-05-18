@@ -7,6 +7,9 @@ class Deployment(BaseModel):
     __tablename__ = "deployments"
 
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    
+    # Track the scheduled worker node
+    worker_node_id = Column(UUID(as_uuid=True), ForeignKey("worker_nodes.id"), nullable=True)
     name = Column(String, nullable=False)
     image = Column(String, nullable=False)
     status = Column(String, nullable=False, default="pending") # pending, provisioning, running, stopped, suspended, failed, expired, deleting, deleted
@@ -16,4 +19,6 @@ class Deployment(BaseModel):
 
     # Relationships
     tenant = relationship("Tenant", back_populates="deployments")
+    worker_node = relationship("WorkerNode")
     events = relationship("DeploymentEvent", back_populates="deployment", cascade="all, delete-orphan")
+    domains = relationship("WorkspaceDomain", back_populates="deployment", cascade="all, delete-orphan")
