@@ -13,6 +13,7 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--providers.redis=true"
       - "--providers.redis.endpoints=redis:6379"
+      - "--providers.redis.password=${REDIS_PASSWORD}"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
 
@@ -30,6 +31,7 @@ services:
 
     networks:
       - frontend
+      - backend
 
     logging:
       options:
@@ -121,7 +123,7 @@ services:
     container_name: arimarun-redis
     restart: unless-stopped
 
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
     volumes:
