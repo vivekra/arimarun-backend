@@ -50,7 +50,7 @@ class RoutingService:
             # SERVICE CONFIG
             # --------------------------------
 
-            target_url = f"https://{worker_ip}:{port}"
+            target_url = f"http://{worker_ip}:{port}"
 
             self.redis_client.set(
                 f"traefik/http/services/{safe_id}/loadBalancer/servers/0/url",
