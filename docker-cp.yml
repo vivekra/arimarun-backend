@@ -11,6 +11,7 @@ services:
       - "--api.dashboard=true"
       - "--api.insecure=true"
 
+
       # Docker Provider
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"

@@ -32,7 +32,7 @@ class RoutingService:
             )
 
             self.redis_client.set(
-                f"traefik/http/routers/{safe_id}/entrypoints",
+                f"traefik/http/routers/{safe_id}/entryPoints",
                 "websecure"
             )
 
@@ -42,7 +42,7 @@ class RoutingService:
             )
 
             self.redis_client.set(
-                f"traefik/http/routers/{safe_id}/tls/certresolver",
+                f"traefik/http/routers/{safe_id}/tls/certResolver",
                 "letsencrypt"
             )
 
@@ -53,12 +53,12 @@ class RoutingService:
             target_url = f"http://{worker_ip}:{port}"
 
             self.redis_client.set(
-                f"traefik/http/services/{safe_id}/loadbalancer/servers/0/url",
+                f"traefik/http/services/{safe_id}/loadBalancer/servers/0/url",
                 target_url
             )
 
             self.redis_client.set(
-                f"traefik/http/services/{safe_id}/loadbalancer/passHostHeader",
+                f"traefik/http/services/{safe_id}/loadBalancer/passHostHeader",
                 "true"
             )
 
@@ -69,7 +69,7 @@ class RoutingService:
             transport_name = f"{safe_id}-transport"
 
             self.redis_client.set(
-                f"traefik/http/services/{safe_id}/loadbalancer/serverstransport",
+                f"traefik/http/services/{safe_id}/loadBalancer/serversTransport",
                 transport_name
             )
 
@@ -98,13 +98,13 @@ class RoutingService:
             keys = [
                 f"traefik/http/routers/{safe_id}/rule",
                 f"traefik/http/routers/{safe_id}/service",
-                f"traefik/http/routers/{safe_id}/entrypoints",
+                f"traefik/http/routers/{safe_id}/entryPoints",
                 f"traefik/http/routers/{safe_id}/tls",
-                f"traefik/http/routers/{safe_id}/tls/certresolver",
+                f"traefik/http/routers/{safe_id}/tls/certResolver",
 
-                f"traefik/http/services/{safe_id}/loadbalancer/servers/0/url",
-                f"traefik/http/services/{safe_id}/loadbalancer/passHostHeader",
-                f"traefik/http/services/{safe_id}/loadbalancer/serverstransport",
+                f"traefik/http/services/{safe_id}/loadBalancer/servers/0/url",
+                f"traefik/http/services/{safe_id}/loadBalancer/passHostHeader",
+                f"traefik/http/services/{safe_id}/loadBalancer/serversTransport",
 
                 f"traefik/http/servertransports/{transport_name}/insecureSkipVerify",
             ]
