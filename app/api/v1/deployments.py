@@ -12,6 +12,7 @@ from app.models.subscription import Subscription
 from app.api.v1.workers import verify_worker_secret
 from app.services.scheduler import scheduler, NoWorkerAvailableError
 import redis
+from rq import Queue
 from app.core.config import settings
 
 # Ideally this uses Depends(get_current_user) but for brevity assuming auth middleware provides it
