@@ -86,10 +86,6 @@ def create_deployment(deploy_in: DeploymentCreate, db: Session = Depends(get_db)
     db.refresh(deployment)
 
     # Enqueue async job to specific worker queue via Redis
-    from rq import Queue
-    redis_conn = redis.from_url(settings.REDIS_URL)
-    worker_queue = Queue(f"deployments:{worker.id}", connection=redis_conn)
-    
     payload = {
         "deployment_id": str(deployment.id),
         "name": f"arimarun-{deployment.id}",
@@ -98,7 +94,15 @@ def create_deployment(deploy_in: DeploymentCreate, db: Session = Depends(get_db)
         "specs": deployment.specs
     }
     
-    worker_queue.enqueue(provision_deployment_task, payload, job_timeout=1800)
+    try:
+        redis_conn = redis.from_url(settings.REDIS_URL)
+        worker_queue = Queue(f"deployments:{worker.id}", connection=redis_conn)
+        worker_queue.enqueue(provision_deployment_task, payload, job_timeout=1800)
+    except Exception as e:
+        # If Redis enqueue fails, rollback the database transaction so we don't end up with a stuck deployment
+        db.delete(deployment)
+        db.commit()
+        raise HTTPException(status_code=503, detail=f"Failed to enqueue deployment task: {str(e)}")
 
     return {
         "id": str(deployment.id),
@@ -185,9 +189,12 @@ def delete_deployment(deployment_id: str, db: Session = Depends(get_db)):
     from app.core.config import settings
 
     if deployment.worker_node_id:
-        redis_conn = redis.from_url(settings.REDIS_URL)
-        worker_queue = Queue(f"deployments:{deployment.worker_node_id}", connection=redis_conn)
-        worker_queue.enqueue(stop_deployment_task, str(deployment.id))
+        try:
+            redis_conn = redis.from_url(settings.REDIS_URL)
+            worker_queue = Queue(f"deployments:{deployment.worker_node_id}", connection=redis_conn)
+            worker_queue.enqueue(stop_deployment_task, str(deployment.id))
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Failed to enqueue stop task: {str(e)}")
 
     # 2. Clear events and deployment record from database
     db.query(DeploymentEvent).filter(DeploymentEvent.deployment_id == deployment.id).delete()
