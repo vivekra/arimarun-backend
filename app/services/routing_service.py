@@ -77,7 +77,7 @@ class RoutingService:
             # Skip TLS verification for Kasm self-signed certs
 
             self.redis_client.set(
-                f"traefik/http/servertransports/{transport_name}/insecureSkipVerify",
+                f"traefik/http/serversTransports/{transport_name}/insecureSkipVerify",
                 "true"
             )
 
@@ -106,7 +106,7 @@ class RoutingService:
                 f"traefik/http/services/{safe_id}/loadBalancer/passHostHeader",
                 f"traefik/http/services/{safe_id}/loadBalancer/serversTransport",
 
-                f"traefik/http/servertransports/{transport_name}/insecureSkipVerify",
+                f"traefik/http/serversTransports/{transport_name}/insecureSkipVerify",
             ]
 
             self.redis_client.delete(*keys)
